@@ -40,11 +40,20 @@
       <button class="nav-tab active" data-tab="dashboard">
         <span class="tab-icon">📊</span> Dashboard
       </button>
+      <button class="nav-tab" data-tab="transactions">
+        <span class="tab-icon">📋</span> Data Transaksi
+      </button>
       <button class="nav-tab" data-tab="upload">
         <span class="tab-icon">📤</span> Upload Data
       </button>
+      <button class="nav-tab" data-tab="report">
+        <span class="tab-icon">🏪</span> Rekap Kiosk
+      </button>
+      <button class="nav-tab" data-tab="master-all">
+        <span class="tab-icon">🗂️</span> Master Keseluruhan
+      </button>
       <button class="nav-tab" data-tab="master">
-        <span class="tab-icon">📋</span> Master Kiosk
+        <span class="tab-icon">📋</span> Master Kiosk Baru
       </button>
     </nav>
 
@@ -128,6 +137,79 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- TAB: Data Transaksi                                        -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="tab-transactions" class="tab-content">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h3 class="section-title" style="margin-bottom:4px;">📋 Data Transaksi</h3>
+          <p id="trx-count" style="font-size:0.85rem;color:var(--text-secondary);">Loading...</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="month-selector">
+            <label for="trx-month">Period:</label>
+            <select id="trx-month" class="month-select" onchange="onTrxFilterChange()">
+              <option value="">All Months</option>
+            </select>
+          </div>
+          <button class="btn btn-success btn-sm" onclick="exportTransactions()">📥 Export CSV</button>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-bar" style="padding:14px 0 14px 0;margin-bottom:16px;border:none;flex-wrap:wrap;gap:12px;">
+        <div class="filter-group">
+          <label class="filter-label">Billing Type</label>
+          <select id="trx-billing-type" onchange="onTrxFilterChange()">
+            <option value="">All Types</option>
+            <option value="PER_STORE">Per-Store</option>
+            <option value="PER_UNIT">Per-Unit</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Store Name</label>
+          <select id="trx-store" class="store-select" onchange="onTrxFilterChange()">
+            <option value="">All Stores</option>
+          </select>
+        </div>
+        <div class="filter-group" style="flex:1;min-width:160px;">
+          <label class="filter-label">No. Order</label>
+          <input type="search" id="trx-order-number" placeholder="Cari nomor order..."
+            oninput="onTrxSearchInput()" style="width:100%;">
+        </div>
+        <div class="filter-group" style="flex:1;min-width:160px;">
+          <label class="filter-label">Kiosk Name</label>
+          <input type="search" id="trx-kiosk-name" placeholder="Cari nama kiosk..."
+            oninput="onTrxSearchInput()" style="width:100%;">
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-container">
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>No. Order</th>
+                <th>Store Name</th>
+                <th>Kiosk Name</th>
+                <th>Billing Type</th>
+              </tr>
+            </thead>
+            <tbody id="trx-tbody">
+              <tr>
+                <td colspan="5" class="loading-overlay"><div class="spinner"></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="trx-pagination" class="pagination"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- TAB: Upload Data                                           -->
     <!-- ═══════════════════════════════════════════════════════════ -->
     <div id="tab-upload" class="tab-content">
@@ -146,15 +228,29 @@
         <div id="order-upload-result"></div>
       </div>
 
-      <!-- Upload Master Kiosk -->
+      <!-- Upload Master Kiosk All (Keseluruhan) -->
       <div class="upload-section">
-        <h3 class="upload-section-title">📋 Upload Master Kiosk (New Units)</h3>
-        <p class="upload-section-desc">Upload CSV of new kiosk units with columns:
+        <h3 class="upload-section-title">🗂️ Upload Master Kiosk Keseluruhan</h3>
+        <p class="upload-section-desc">Upload CSV semua kiosk dengan kolom:
+          <code>kiosk_name, store_code, store_name</code> — digunakan untuk tampilan rekap store &amp; kiosk.</p>
+        <div id="master-all-upload-zone" class="upload-zone">
+          <input type="file" id="master-all-file-input" accept=".csv">
+          <div class="upload-icon">🗂️</div>
+          <div class="upload-text">Drag & drop master kiosk keseluruhan di sini, atau <span class="upload-btn-text">browse files</span></div>
+          <div class="upload-hint">CSV files only • Data lama akan di-replace</div>
+        </div>
+        <div id="master-all-upload-result"></div>
+      </div>
+
+      <!-- Upload Master Kiosk (Per-Unit / Baru) -->
+      <div class="upload-section">
+        <h3 class="upload-section-title">📋 Upload Master Kiosk Baru (Per-Unit Billing)</h3>
+        <p class="upload-section-desc">Upload CSV kiosk baru (PER_UNIT billing) dengan kolom:
           <code>created, name, store_name</code></p>
         <div id="master-upload-zone" class="upload-zone">
           <input type="file" id="master-file-input" accept=".csv">
           <div class="upload-icon">📋</div>
-          <div class="upload-text">Drag & drop your master kiosk CSV here, or <span class="upload-btn-text">browse
+          <div class="upload-text">Drag & drop master kiosk baru di sini, atau <span class="upload-btn-text">browse
               files</span></div>
           <div class="upload-hint">CSV files only • Existing kiosks will be updated</div>
         </div>
@@ -186,6 +282,84 @@
             </table>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- TAB: Rekap Kiosk                                           -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="tab-report" class="tab-content">
+      <!-- Header & Controls -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h3 class="section-title" style="margin-bottom:4px;">🏪 Rekap Store &amp; Kiosk</h3>
+          <p id="report-count" style="font-size:0.85rem;color:var(--text-secondary);">Loading...</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div class="month-selector">
+            <label for="report-month">Period:</label>
+            <select id="report-month" class="month-select" onchange="onReportMonthChange()">
+              <option value="">All Months</option>
+            </select>
+          </div>
+          <button class="btn btn-success btn-sm" onclick="exportReportExcel()">📥 Export Excel</button>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div style="margin-bottom:16px;">
+        <input type="search" id="report-search" placeholder="Cari store atau nama kiosk..."
+          oninput="onReportSearch()" style="width:100%;max-width:420px;">
+      </div>
+
+      <!-- Stats Bar -->
+      <div id="report-stats" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;"></div>
+
+      <!-- Table -->
+      <div id="report-table-container" class="table-container">
+        <div class="loading-overlay"><div class="spinner"></div> Loading...</div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- TAB: Master Kiosk Keseluruhan                              -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="tab-master-all" class="tab-content">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h3 class="section-title" style="margin-bottom:4px;">🗂️ Master Kiosk Keseluruhan</h3>
+          <p id="master-all-count" style="font-size:0.85rem;color:var(--text-secondary);">Loading...</p>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-danger btn-sm" onclick="confirmDeleteAllMasterKiosks()">🗑️ Delete All</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <input type="search" id="master-all-search" placeholder="Cari nama kiosk, store code, atau store..."
+          oninput="onMasterAllSearch()" style="width:100%;max-width:420px;">
+      </div>
+
+      <div class="table-container">
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Kiosk Name</th>
+                <th>Store Code</th>
+                <th>Store Name</th>
+                <th>Registered At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="master-all-tbody">
+              <tr>
+                <td colspan="5" class="loading-overlay"><div class="spinner"></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="master-all-pagination" class="pagination"></div>
       </div>
     </div>
 
@@ -306,6 +480,39 @@
     </div>
   </div>
 
+  <!-- Delete Single Master-All Kiosk Modal -->
+  <div id="delete-master-all-modal" class="modal-overlay" onclick="if(event.target===this) hideModal('delete-master-all-modal')">
+    <div class="modal">
+      <h3 class="modal-title">🗑️ Delete Kiosk</h3>
+      <input type="hidden" id="delete-master-all-id">
+      <div class="modal-body">
+        <p class="confirm-text">Hapus kiosk <strong id="delete-master-all-name"></strong> dari master keseluruhan?<br>Tindakan ini tidak dapat dibatalkan.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="hideModal('delete-master-all-modal')">Cancel</button>
+        <button class="btn btn-danger" onclick="deleteMasterAllKiosk()">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete All Master-All Kiosks Modal -->
+  <div id="delete-all-master-all-modal" class="modal-overlay" onclick="if(event.target===this) hideModal('delete-all-master-all-modal')">
+    <div class="modal">
+      <h3 class="modal-title">⚠️ Delete All Master Keseluruhan</h3>
+      <div class="modal-body">
+        <p class="confirm-text">
+          Hapus <strong>SEMUA</strong> kiosk dari master keseluruhan?<br><br>
+          Data rekap store &amp; kiosk akan kosong sampai Anda upload ulang.<br>
+          <strong>Data transaksi tidak akan terpengaruh.</strong>
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="hideModal('delete-all-master-all-modal')">Cancel</button>
+        <button class="btn btn-danger" onclick="deleteAllMasterKiosks()">Delete All</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Delete Batch Modal -->
   <div id="delete-batch-modal" class="modal-overlay" onclick="if(event.target===this) hideModal('delete-batch-modal')">
     <div class="modal">
@@ -327,6 +534,8 @@
   <script src="/js/dashboard.js"></script>
   <script src="/js/upload.js"></script>
   <script src="/js/master.js"></script>
+  <script src="/js/report.js"></script>
+  <script src="/js/transactions.js"></script>
 </body>
 
 </html>

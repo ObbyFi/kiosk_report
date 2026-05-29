@@ -79,6 +79,29 @@ function parseMasterKioskCSV(content) {
 }
 
 /**
+ * Parse master kiosk all CSV.
+ * Expected columns: kiosk_name, store_code, store_name
+ */
+function parseMasterAllCSV(content) {
+  const records = parseCSV(content);
+  const errors = [];
+
+  const validated = records.map((row, idx) => {
+    const name = (row.kiosk_name || '').trim();
+    const store_code = (row.store_code || '').trim();
+    const store_name = (row.store_name || '').trim();
+
+    if (!name) errors.push(`Row ${idx + 2}: missing 'kiosk_name'`);
+    if (!store_code) errors.push(`Row ${idx + 2}: missing 'store_code'`);
+    if (!store_name) errors.push(`Row ${idx + 2}: missing 'store_name'`);
+
+    return { name, store_code, store_name };
+  });
+
+  return { data: validated, errors };
+}
+
+/**
  * Parse and validate order data CSV.
  * Expected columns: order_date, order_number, store_name, kiosk_name
  */
@@ -112,5 +135,6 @@ module.exports = {
   parseCSV,
   normalizeDate,
   parseMasterKioskCSV,
+  parseMasterAllCSV,
   parseOrderDataCSV
 };

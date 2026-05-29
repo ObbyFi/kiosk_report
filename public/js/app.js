@@ -30,8 +30,11 @@ function switchTab(tabId) {
 
   // Load tab data
   if (tabId === 'dashboard') loadDashboard();
+  if (tabId === 'transactions') loadTransactions();
   if (tabId === 'upload') loadUploadHistory();
   if (tabId === 'master') loadMasterKiosks();
+  if (tabId === 'master-all') loadMasterAllKiosks();
+  if (tabId === 'report') loadReport();
 }
 
 // ─── Toast Notifications ────────────────────────────────────────────

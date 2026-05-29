@@ -90,6 +90,40 @@ router.post('/master/kiosks/delete-all', (req, res) => {
   }
 });
 
+// ─── Master Kiosk All (Keseluruhan) ───────────────────────────────
+
+router.get('/master/all-kiosks', (req, res) => {
+  try {
+    const { search = '', page = 1, limit = 20 } = req.query;
+    const result = db.getAllMasterKiosks(search, parseInt(page), parseInt(limit));
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/master/all-kiosks/:id', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const existing = db.getMasterKioskById.get(id);
+    if (!existing) return res.status(404).json({ error: 'Kiosk not found' });
+    db.deleteMasterKiosk.run(id);
+    res.json({ success: true, message: `Kiosk "${existing.name}" deleted` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/master/all-kiosks/delete-all', (req, res) => {
+  try {
+    const count = db.getMasterKioskCount.get().count;
+    db.deleteAllMasterKiosks.run();
+    res.json({ success: true, message: `All ${count} kiosks deleted` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Re-classify a specific batch ──────────────────────────────────
 router.post('/master/reclassify/:batchId', (req, res) => {
   try {

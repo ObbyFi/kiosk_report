@@ -6,8 +6,8 @@ const router = express.Router();
 // ─── Export orders as CSV ──────────────────────────────────────────
 router.get('/export/orders', (req, res) => {
   try {
-    const { month, billing_type, store_name, kiosk_name } = req.query;
-    const orders = db.getAllOrdersFiltered({ month, billing_type, store_name, kiosk_name });
+    const { month, billing_type, store_name, kiosk_name, order_number } = req.query;
+    const orders = db.getAllOrdersFiltered({ month, billing_type, store_name, kiosk_name, order_number });
 
     // Build CSV
     const headers = ['order_date', 'order_number', 'store_name', 'kiosk_name', 'billing_type'];
@@ -123,6 +123,97 @@ router.get('/export/billing-summary', (req, res) => {
     res.send(html);
   } catch (err) {
     console.error('Export billing summary error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Export store-kiosk report as Excel ───────────────────────────
+router.get('/export/store-kiosk-report', (req, res) => {
+  try {
+    const { month } = req.query;
+    const rows = db.getStoreKioskReport(month || null);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No data to export' });
+    }
+
+    // Group by store
+    const stores = {};
+    for (const row of rows) {
+      if (!stores[row.store_name]) stores[row.store_name] = [];
+      stores[row.store_name].push(row);
+    }
+
+    const totalKiosks = db.getMasterKioskCount.get().count;
+    const totalNew = rows.filter(r => r.is_new).length;
+    const totalActive = rows.filter(r => r.is_active).length;
+    const periodLabel = month
+      ? new Date(month + '-01').toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+      : 'Semua Periode';
+
+    let tableRows = '';
+    for (const [storeName, kiosks] of Object.entries(stores).sort()) {
+      kiosks.forEach((k, idx) => {
+        const badges = [];
+        if (k.is_new) badges.push('NEW');
+        if (k.is_active) badges.push('ACTIVE');
+        if (k.has_no_transactions) badges.push('NO TRANSACTION');
+        if (k.is_unregistered) badges.push('UNREGISTERED');
+        tableRows += `
+          <tr>
+            ${idx === 0 ? `<td rowspan="${kiosks.length}" style="vertical-align:top;font-weight:bold;background:#f8fafc;">${storeName}</td>` : ''}
+            <td>${k.kiosk_name}</td>
+            <td>${badges.join(', ')}</td>
+          </tr>`;
+      });
+    }
+
+    const html = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 10pt; }
+    h2 { font-size: 13pt; color: #0f172a; margin-bottom: 4px; }
+    .sub { font-size: 9pt; color: #64748b; margin-bottom: 16px; }
+    .summary { margin-bottom: 16px; font-size: 10pt; }
+    .summary td { padding: 3px 12px 3px 0; }
+    table.data { border-collapse: collapse; width: 100%; }
+    table.data th { background: #1e293b; color: #fff; padding: 8px 12px; text-align: left; font-size: 10pt; border: 1px solid #cbd5e1; }
+    table.data td { padding: 7px 12px; border: 1px solid #e2e8f0; font-size: 10pt; }
+    table.data tr:nth-child(even) td { background: #f8fafc; }
+    .badge-new { color: #b45309; font-weight: 600; }
+    .badge-active { color: #065f46; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h2>Rekap Store &amp; Kiosk</h2>
+  <div class="sub">Periode: ${periodLabel}</div>
+  <table class="summary">
+    <tr><td>Total Kiosk</td><td><strong>${totalKiosks}</strong></td></tr>
+    <tr><td>Kiosk Baru (NEW)</td><td><strong>${totalNew}</strong></td></tr>
+    <tr><td>Kiosk Aktif</td><td><strong>${totalActive}</strong></td></tr>
+    <tr><td>Jumlah Store</td><td><strong>${Object.keys(stores).length}</strong></td></tr>
+  </table>
+  <table class="data">
+    <thead>
+      <tr>
+        <th style="width:220px;">Store</th>
+        <th style="width:220px;">Kiosk</th>
+        <th style="width:140px;">Status</th>
+      </tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+</body>
+</html>`;
+
+    const filename = `rekap_kiosk_${month || 'all'}.xls`;
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(html);
+  } catch (err) {
+    console.error('Export store kiosk report error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -15,6 +15,14 @@ const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// Migration: recreate master_kiosks if it doesn't have store_code column
+const masterKioskSchema = db.prepare(
+  "SELECT sql FROM sqlite_master WHERE type='table' AND name='master_kiosks'"
+).get();
+if (masterKioskSchema && !masterKioskSchema.sql.includes('store_code')) {
+  db.exec('DROP TABLE IF EXISTS master_kiosks');
+}
+
 // ─── Schema Creation ───────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS new_kiosks (
@@ -46,11 +54,28 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS master_kiosks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    store_code TEXT NOT NULL,
+    store_name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS kiosk_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alias_name TEXT UNIQUE NOT NULL,
+    canonical_name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_orders_kiosk_name ON orders(kiosk_name);
   CREATE INDEX IF NOT EXISTS idx_orders_billing_type ON orders(billing_type);
   CREATE INDEX IF NOT EXISTS idx_orders_order_date ON orders(order_date);
   CREATE INDEX IF NOT EXISTS idx_orders_upload_batch ON orders(upload_batch);
   CREATE INDEX IF NOT EXISTS idx_new_kiosks_name ON new_kiosks(name);
+  CREATE INDEX IF NOT EXISTS idx_master_kiosks_name ON master_kiosks(name);
+  CREATE INDEX IF NOT EXISTS idx_kiosk_aliases_alias ON kiosk_aliases(alias_name);
 `);
 
 // ─── Master Kiosk Queries ──────────────────────────────────────────
@@ -97,6 +122,92 @@ const getKioskCount = db.prepare('SELECT COUNT(*) as count FROM new_kiosks');
 
 const isNewKiosk = db.prepare('SELECT id FROM new_kiosks WHERE name = ?');
 
+// ─── Master Kiosk All Queries ──────────────────────────────────────
+
+const insertMasterKiosk = db.prepare(`
+  INSERT OR REPLACE INTO master_kiosks (name, store_code, store_name)
+  VALUES (?, ?, ?)
+`);
+
+const deleteAllMasterKiosks = db.prepare('DELETE FROM master_kiosks');
+
+const deleteMasterKiosk = db.prepare('DELETE FROM master_kiosks WHERE id = ?');
+
+const getMasterKioskCount = db.prepare('SELECT COUNT(*) as count FROM master_kiosks');
+
+const getMasterKioskById = db.prepare('SELECT * FROM master_kiosks WHERE id = ?');
+
+const getAllMasterKiosks = (search = '', page = 1, limit = 20) => {
+  const offset = (page - 1) * limit;
+  const where = search
+    ? `WHERE name LIKE ? OR store_name LIKE ? OR store_code LIKE ?`
+    : '';
+  const params = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : [];
+
+  const rows = db.prepare(`
+    SELECT * FROM master_kiosks ${where}
+    ORDER BY store_name ASC, name ASC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+
+  const total = db.prepare(`
+    SELECT COUNT(*) as count FROM master_kiosks ${where}
+  `).get(...params);
+
+  return { rows, total: total.count, page, limit };
+};
+
+const insertMasterKioskBatch = db.transaction((kiosks) => {
+  let inserted = 0;
+  for (const k of kiosks) {
+    const result = insertMasterKiosk.run(k.name, k.store_code, k.store_name);
+    if (result.changes > 0) inserted++;
+  }
+  return { inserted };
+});
+
+const getStoreKioskReport = (month) => {
+  const monthCondition = month
+    ? `AND strftime('%Y-%m', order_date) = '${month.replace(/'/g, "''")}'`
+    : '';
+
+  return db.prepare(`
+    SELECT * FROM (
+      SELECT
+        mk.store_name AS store_name,
+        mk.name AS kiosk_name,
+        CASE WHEN nk.id IS NOT NULL THEN 1 ELSE 0 END AS is_new,
+        CASE WHEN o_active.kiosk_name IS NOT NULL THEN 1 ELSE 0 END AS is_active,
+        CASE WHEN o_ever.kiosk_name IS NULL THEN 1 ELSE 0 END AS has_no_transactions,
+        0 AS is_unregistered
+      FROM master_kiosks mk
+      LEFT JOIN new_kiosks nk ON mk.name = nk.name
+      LEFT JOIN (
+        SELECT DISTINCT kiosk_name FROM orders WHERE 1=1 ${monthCondition}
+      ) o_active ON mk.name = o_active.kiosk_name
+      LEFT JOIN (
+        SELECT DISTINCT kiosk_name FROM orders
+      ) o_ever ON mk.name = o_ever.kiosk_name
+
+      UNION
+
+      SELECT
+        o2.store_name AS store_name,
+        o2.kiosk_name AS kiosk_name,
+        CASE WHEN nk2.id IS NOT NULL THEN 1 ELSE 0 END AS is_new,
+        1 AS is_active,
+        0 AS has_no_transactions,
+        1 AS is_unregistered
+      FROM (
+        SELECT DISTINCT kiosk_name, store_name FROM orders WHERE 1=1 ${monthCondition}
+      ) o2
+      LEFT JOIN new_kiosks nk2 ON o2.kiosk_name = nk2.name
+      WHERE o2.kiosk_name NOT IN (SELECT name FROM master_kiosks)
+    )
+    ORDER BY store_name ASC, kiosk_name ASC
+  `).all();
+};
+
 // ─── Order Queries ─────────────────────────────────────────────────
 
 const insertOrder = db.prepare(`
@@ -105,7 +216,7 @@ const insertOrder = db.prepare(`
 `);
 
 const getOrders = (filters = {}) => {
-  const { month, billing_type, store_name, kiosk_name, search, page = 1, limit = 25 } = filters;
+  const { month, billing_type, store_name, kiosk_name, order_number, search, page = 1, limit = 25 } = filters;
   const conditions = [];
   const params = [];
 
@@ -124,6 +235,10 @@ const getOrders = (filters = {}) => {
   if (kiosk_name) {
     conditions.push('kiosk_name LIKE ?');
     params.push(`%${kiosk_name}%`);
+  }
+  if (order_number) {
+    conditions.push('order_number LIKE ?');
+    params.push(`%${order_number}%`);
   }
   if (search) {
     conditions.push('(order_number LIKE ? OR store_name LIKE ? OR kiosk_name LIKE ?)');
@@ -147,7 +262,7 @@ const getOrders = (filters = {}) => {
 };
 
 const getAllOrdersFiltered = (filters = {}) => {
-  const { month, billing_type, store_name, kiosk_name } = filters;
+  const { month, billing_type, store_name, kiosk_name, order_number } = filters;
   const conditions = [];
   const params = [];
 
@@ -166,6 +281,10 @@ const getAllOrdersFiltered = (filters = {}) => {
   if (kiosk_name) {
     conditions.push('kiosk_name LIKE ?');
     params.push(`%${kiosk_name}%`);
+  }
+  if (order_number) {
+    conditions.push('order_number LIKE ?');
+    params.push(`%${order_number}%`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -351,7 +470,7 @@ const deleteUploadByBatch = db.prepare("DELETE FROM uploads WHERE batch_id = ?")
 
 module.exports = {
   db,
-  // Master kiosk
+  // Master kiosk (new/per-unit)
   getAllKiosks,
   getKioskById,
   updateKiosk,
@@ -359,6 +478,14 @@ module.exports = {
   deleteAllKiosks,
   getKioskCount,
   insertKioskBatch,
+  // Master kiosk all
+  getAllMasterKiosks,
+  getMasterKioskById,
+  deleteMasterKiosk,
+  insertMasterKioskBatch,
+  deleteAllMasterKiosks,
+  getMasterKioskCount,
+  getStoreKioskReport,
   // Orders
   getOrders,
   getAllOrdersFiltered,

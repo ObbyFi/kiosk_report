@@ -28,9 +28,9 @@ router.get('/dashboard/monthly-trend', (req, res) => {
 // ─── Orders list (paginated + filtered) ────────────────────────────
 router.get('/dashboard/orders', (req, res) => {
   try {
-    const { month, billing_type, store_name, kiosk_name, search, page = 1, limit = 25 } = req.query;
+    const { month, billing_type, store_name, kiosk_name, order_number, search, page = 1, limit = 25 } = req.query;
     const result = db.getOrders({
-      month, billing_type, store_name, kiosk_name, search,
+      month, billing_type, store_name, kiosk_name, order_number, search,
       page: parseInt(page),
       limit: parseInt(limit)
     });
@@ -67,6 +67,19 @@ router.get('/dashboard/billing-summary', (req, res) => {
     const summary = db.getBillingSummary(month || null);
     res.json(summary);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Store Kiosk Report ───────────────────────────────────────────
+router.get('/dashboard/store-kiosk-report', (req, res) => {
+  try {
+    const { month } = req.query;
+    const rows = db.getStoreKioskReport(month || null);
+    const masterTotal = db.getMasterKioskCount.get().count;
+    res.json({ rows, master_total: masterTotal });
+  } catch (err) {
+    console.error('Store kiosk report error:', err);
     res.status(500).json({ error: err.message });
   }
 });

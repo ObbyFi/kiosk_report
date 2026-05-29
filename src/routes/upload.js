@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-const { parseMasterKioskCSV, parseOrderDataCSV } = require('../utils/csv-parser');
+const { parseMasterKioskCSV, parseMasterAllCSV, parseOrderDataCSV } = require('../utils/csv-parser');
 const db = require('../database');
 
 const router = express.Router();
@@ -58,6 +58,47 @@ router.post('/upload/master-kiosk', upload.single('file'), (req, res) => {
     });
   } catch (err) {
     console.error('Upload master kiosk error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Upload Master Kiosk All (Keseluruhan) ────────────────────────
+router.post('/upload/master-all', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const content = req.file.buffer.toString('utf-8');
+    const { data, errors } = parseMasterAllCSV(content);
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        error: 'CSV validation errors',
+        details: errors.slice(0, 10)
+      });
+    }
+
+    if (data.length === 0) {
+      return res.status(400).json({ error: 'CSV file is empty' });
+    }
+
+    const { inserted } = db.insertMasterKioskBatch(data);
+
+    const batchId = require('crypto').randomUUID ? require('crypto').randomUUID() : uuidv4();
+    db.insertUpload.run(batchId, req.file.originalname, 'MASTER_ALL', inserted, 0);
+
+    res.json({
+      success: true,
+      message: `${inserted} kiosk berhasil di-import ke master kiosk keseluruhan.`,
+      stats: {
+        total_rows: data.length,
+        inserted_or_updated: inserted,
+        file_name: req.file.originalname
+      }
+    });
+  } catch (err) {
+    console.error('Upload master all error:', err);
     res.status(500).json({ error: err.message });
   }
 });

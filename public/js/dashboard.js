@@ -288,11 +288,11 @@ async function loadBillingSummary(month) {
 // ─── Store Kiosk Recap ──────────────────────────────────────────────
 async function loadStoreKioskRecap(month) {
   try {
-    const recap = await api(`/api/dashboard/store-recap${month ? `?month=${month}` : ''}`);
     const tbody = document.getElementById('recap-store-tbody');
     const totalEl = document.getElementById('recap-total-kiosks');
-    
     if (!tbody) return;
+
+    const recap = await api(`/api/dashboard/store-recap${month ? `?month=${month}` : ''}`);
     
     if (recap.length === 0) {
       tbody.innerHTML = `
@@ -324,6 +324,82 @@ async function loadStoreKioskRecap(month) {
     }
   } catch (err) {
     console.error('Load store kiosk recap error:', err);
+  }
+}
+
+// ─── Store Kiosk Report ─────────────────────────────────────────────
+async function loadStoreKioskReport(month) {
+  const container = document.getElementById('store-kiosk-report');
+  if (!container) return;
+
+  try {
+    const rows = await api(`/api/dashboard/store-kiosk-report${month ? `?month=${month}` : ''}`);
+
+    if (rows.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+          <div class="empty-icon">🏪</div>
+          <h3>Belum ada data</h3>
+          <p>Upload master kiosk keseluruhan dan data order untuk melihat rekap ini.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Group by store
+    const stores = {};
+    for (const row of rows) {
+      if (!stores[row.store_name]) stores[row.store_name] = [];
+      stores[row.store_name].push(row);
+    }
+
+    const storeNames = Object.keys(stores).sort();
+    let totalKiosks = rows.length;
+    let totalNew = rows.filter(r => r.is_new).length;
+    let totalActive = rows.filter(r => r.is_active).length;
+
+    let tableRows = '';
+    for (const storeName of storeNames) {
+      const kiosks = stores[storeName];
+      kiosks.forEach((k, idx) => {
+        tableRows += `
+          <tr>
+            ${idx === 0 ? `<td rowspan="${kiosks.length}" style="vertical-align: top; font-weight: 600; border-right: 1px solid var(--border-color); padding-top: 12px;">${storeName}</td>` : ''}
+            <td>${k.kiosk_name}${k.is_unregistered ? ' <span title="Tidak terdaftar di master" style="color:var(--text-muted);font-size:0.75rem;">✦</span>' : ''}</td>
+            <td style="white-space: nowrap;">
+              ${k.is_new ? '<span class="badge" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);font-size:0.7rem;padding:2px 8px;">NEW</span> ' : ''}
+              ${k.is_active ? '<span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);font-size:0.7rem;padding:2px 8px;">ACTIVE</span>' : ''}
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    container.innerHTML = `
+      <div style="display:flex;gap:24px;padding:16px 20px;border-bottom:1px solid var(--border-color);flex-wrap:wrap;">
+        <div><span style="color:var(--text-muted);font-size:0.8rem;">Total Kiosk</span><div style="font-size:1.3rem;font-weight:700;color:var(--text-primary);">${formatNumber(totalKiosks)}</div></div>
+        <div><span style="color:var(--text-muted);font-size:0.8rem;">Kiosk Baru (NEW)</span><div style="font-size:1.3rem;font-weight:700;color:#f59e0b;">${formatNumber(totalNew)}</div></div>
+        <div><span style="color:var(--text-muted);font-size:0.8rem;">Kiosk Aktif</span><div style="font-size:1.3rem;font-weight:700;color:#10b981;">${formatNumber(totalActive)}</div></div>
+        <div><span style="color:var(--text-muted);font-size:0.8rem;">Jumlah Store</span><div style="font-size:1.3rem;font-weight:700;color:var(--accent-blue);">${formatNumber(storeNames.length)}</div></div>
+      </div>
+      <div style="overflow-x:auto;max-height:500px;overflow-y:auto;">
+        <table class="data-table" style="margin-top:0;">
+          <thead>
+            <tr style="position:sticky;top:0;z-index:1;background:#1a2237;">
+              <th style="min-width:160px;">Store</th>
+              <th>Kiosk</th>
+              <th style="min-width:140px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 20px;font-size:0.75rem;color:var(--text-muted);">
+        ✦ Kiosk aktif yang tidak terdaftar di master kiosk keseluruhan
+      </div>
+    `;
+  } catch (err) {
+    console.error('Load store kiosk report error:', err);
   }
 }
 

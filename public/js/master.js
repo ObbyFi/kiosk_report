@@ -1,3 +1,92 @@
+// ─── Master Kiosk All (Keseluruhan) State ────────────────────────────
+let masterAllPage = 1;
+
+async function loadMasterAllKiosks(page = 1) {
+  masterAllPage = page;
+  const search = document.getElementById('master-all-search')?.value || '';
+
+  try {
+    const params = new URLSearchParams({ search, page, limit: 20 });
+    const data = await api(`/api/master/all-kiosks?${params}`);
+
+    const tbody = document.getElementById('master-all-tbody');
+    const pagination = document.getElementById('master-all-pagination');
+    const countEl = document.getElementById('master-all-count');
+
+    if (countEl) countEl.textContent = `${formatNumber(data.total)} kiosk terdaftar`;
+
+    if (data.rows.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted);">
+            ${search ? 'Tidak ada kiosk yang cocok dengan pencarian' : 'Belum ada data. Upload master kiosk keseluruhan untuk memulai.'}
+          </td>
+        </tr>`;
+      if (pagination) pagination.innerHTML = '';
+      return;
+    }
+
+    tbody.innerHTML = data.rows.map(k => `
+      <tr>
+        <td><strong>${k.name}</strong></td>
+        <td style="font-family:monospace;font-size:0.85rem;">${k.store_code}</td>
+        <td>${k.store_name}</td>
+        <td>${formatDate(k.created_at)}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="confirmDeleteMasterAllKiosk(${k.id}, '${k.name.replace(/'/g, "\\'")}')" title="Delete">🗑️</button>
+        </td>
+      </tr>
+    `).join('');
+
+    createPagination(pagination, data.total, data.page, data.limit, changeMasterAllPage);
+  } catch (err) {
+    console.error('Load master all kiosks error:', err);
+  }
+}
+
+function changeMasterAllPage(page) {
+  loadMasterAllKiosks(page);
+}
+
+let masterAllSearchTimeout;
+function onMasterAllSearch() {
+  clearTimeout(masterAllSearchTimeout);
+  masterAllSearchTimeout = setTimeout(() => loadMasterAllKiosks(1), 400);
+}
+
+function confirmDeleteMasterAllKiosk(id, name) {
+  document.getElementById('delete-master-all-name').textContent = name;
+  document.getElementById('delete-master-all-id').value = id;
+  showModal('delete-master-all-modal');
+}
+
+async function deleteMasterAllKiosk() {
+  const id = document.getElementById('delete-master-all-id').value;
+  try {
+    await api(`/api/master/all-kiosks/${id}`, { method: 'DELETE' });
+    hideModal('delete-master-all-modal');
+    showToast('success', 'Kiosk Deleted', 'Kiosk telah dihapus dari master keseluruhan');
+    loadMasterAllKiosks(masterAllPage);
+  } catch (err) {
+    showToast('error', 'Delete Failed', err.message);
+  }
+}
+
+function confirmDeleteAllMasterKiosks() {
+  showModal('delete-all-master-all-modal');
+}
+
+async function deleteAllMasterKiosks() {
+  try {
+    const result = await api('/api/master/all-kiosks/delete-all', { method: 'POST' });
+    hideModal('delete-all-master-all-modal');
+    showToast('success', 'Semua Kiosk Dihapus', result.message);
+    loadMasterAllKiosks(1);
+  } catch (err) {
+    showToast('error', 'Delete Failed', err.message);
+  }
+}
+
 // ─── Master Kiosk State ─────────────────────────────────────────────
 let masterPage = 1;
 let masterSearch = '';

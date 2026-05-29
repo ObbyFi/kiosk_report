@@ -34,10 +34,9 @@ async function handleFileUpload(file, type) {
     return;
   }
 
-  const resultId = type === 'order' ? 'order-upload-result' : 'master-upload-result';
-  const resultDiv = document.getElementById(resultId);
+  const resultIdMap = { order: 'order-upload-result', master: 'master-upload-result', 'master-all': 'master-all-upload-result' };
+  const resultDiv = document.getElementById(resultIdMap[type]);
 
-  // Show loading
   resultDiv.innerHTML = `
     <div class="upload-result info" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2);">
       <h4 style="color: var(--accent-blue);">⏳ Uploading ${file.name}...</h4>
@@ -51,10 +50,14 @@ async function handleFileUpload(file, type) {
   const formData = new FormData();
   formData.append('file', file);
 
-  const endpoint = type === 'order' ? '/api/upload/order-data' : '/api/upload/master-kiosk';
+  const endpointMap = {
+    order: '/api/upload/order-data',
+    master: '/api/upload/master-kiosk',
+    'master-all': '/api/upload/master-all'
+  };
 
   try {
-    const res = await fetch(endpoint, { method: 'POST', body: formData });
+    const res = await fetch(endpointMap[type], { method: 'POST', body: formData });
     const data = await res.json();
 
     if (!res.ok) {
@@ -75,10 +78,21 @@ async function handleFileUpload(file, type) {
           </div>
         </div>
       `;
+    } else if (type === 'master-all') {
+      resultDiv.innerHTML = `
+        <div class="upload-result success">
+          <h4>✅ Master Kiosk Keseluruhan Uploaded Successfully</h4>
+          <div class="stats">
+            <div class="stat-item">📄 File: <strong>${data.stats.file_name}</strong></div>
+            <div class="stat-item">📝 Total Rows: <strong>${formatNumber(data.stats.total_rows)}</strong></div>
+            <div class="stat-item">✅ Inserted/Updated: <strong>${formatNumber(data.stats.inserted_or_updated)}</strong></div>
+          </div>
+        </div>
+      `;
     } else {
       resultDiv.innerHTML = `
         <div class="upload-result success">
-          <h4>✅ Master Kiosk Uploaded Successfully</h4>
+          <h4>✅ Master Kiosk Baru (Per-Unit) Uploaded Successfully</h4>
           <div class="stats">
             <div class="stat-item">📄 File: <strong>${data.stats.file_name}</strong></div>
             <div class="stat-item">📝 Total Rows: <strong>${formatNumber(data.stats.total_rows)}</strong></div>
@@ -90,9 +104,9 @@ async function handleFileUpload(file, type) {
 
     showToast('success', 'Upload Complete', `${file.name} processed successfully`);
 
-    // Refresh filters and data
     await loadFilters();
     loadUploadHistory();
+    if (type === 'master-all') loadDashboard();
 
   } catch (err) {
     resultDiv.innerHTML = `
@@ -132,7 +146,9 @@ async function loadUploadHistory() {
         <td>
           ${u.upload_type === 'ORDER_DATA'
             ? '<span class="badge badge-unit"><span class="badge-dot"></span>ORDER DATA</span>'
-            : '<span class="badge badge-store"><span class="badge-dot"></span>MASTER KIOSK</span>'
+            : u.upload_type === 'MASTER_ALL'
+              ? '<span class="badge" style="background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);"><span class="badge-dot" style="background:#a78bfa;"></span>MASTER ALL</span>'
+              : '<span class="badge badge-store"><span class="badge-dot"></span>MASTER KIOSK</span>'
           }
         </td>
         <td>${formatNumber(u.record_count)}${u.duplicate_count > 0 ? ` <span style="color: var(--text-muted);">(${u.duplicate_count} dup)</span>` : ''}</td>
@@ -190,5 +206,6 @@ async function reclassifyBatch(batchId) {
 // ─── Init upload zones on tab switch ────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initUploadZone('order-upload-zone', 'order-file-input', 'order');
+  initUploadZone('master-all-upload-zone', 'master-all-file-input', 'master-all');
   initUploadZone('master-upload-zone', 'master-file-input', 'master');
 });

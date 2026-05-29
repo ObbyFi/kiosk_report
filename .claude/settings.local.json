@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"require\\('./src/database.js'\\); console.log\\('DB OK'\\)\")",
+      "Bash(node -e \"require\\('./src/routes/upload.js'\\); console.log\\('Upload route OK'\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"require\\('./src/database.js'\\); console.log\\('DB OK'\\);\")",
+      "Bash(node -e \"require\\('./src/routes/export.js'\\); console.log\\('Export route OK'\\);\")",
+      "Bash(Get-ChildItem -Path \"d:\\\\Project\\\\kiosk_report\" -Recurse -Force)",
+      "Bash(Select-Object -First 30)",
+      "Bash(Format-Table FullName)"
+    ]
+  }
+}
