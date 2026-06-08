@@ -8,7 +8,12 @@
       "Bash(node -e \"require\\('./src/routes/export.js'\\); console.log\\('Export route OK'\\);\")",
       "Bash(Get-ChildItem -Path \"d:\\\\Project\\\\kiosk_report\" -Recurse -Force)",
       "Bash(Select-Object -First 30)",
-      "Bash(Format-Table FullName)"
+      "Bash(Format-Table FullName)",
+      "Bash(git reset *)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
