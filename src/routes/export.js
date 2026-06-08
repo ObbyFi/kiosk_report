@@ -157,7 +157,7 @@ router.get('/export/store-kiosk-report', (req, res) => {
         const badges = [];
         if (k.is_new) badges.push('NEW');
         if (k.is_active) badges.push('ACTIVE');
-        if (k.has_no_transactions) badges.push('NO TRANSACTION');
+        else badges.push('NO TRANSACTION');
         if (k.is_unregistered) badges.push('UNREGISTERED');
         tableRows += `
           <tr>

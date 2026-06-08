@@ -28,8 +28,7 @@
       <div class="header-actions">
         <div class="month-selector">
           <label for="dashboard-month">Period:</label>
-          <select id="dashboard-month" class="month-select" onchange="onDashboardMonthChange()">
-            <option value="">All Months</option>
+          <select id="dashboard-month" class="month-select" data-required="true" onchange="onDashboardMonthChange()">
           </select>
         </div>
       </div>
@@ -149,8 +148,7 @@
         <div style="display:flex;gap:10px;align-items:center;">
           <div class="month-selector">
             <label for="trx-month">Period:</label>
-            <select id="trx-month" class="month-select" onchange="onTrxFilterChange()">
-              <option value="">All Months</option>
+            <select id="trx-month" class="month-select" data-required="true" onchange="onTrxFilterChange()">
             </select>
           </div>
           <button class="btn btn-success btn-sm" onclick="exportTransactions()">📥 Export CSV</button>
@@ -298,8 +296,7 @@
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <div class="month-selector">
             <label for="report-month">Period:</label>
-            <select id="report-month" class="month-select" onchange="onReportMonthChange()">
-              <option value="">All Months</option>
+            <select id="report-month" class="month-select" data-required="true" onchange="onReportMonthChange()">
             </select>
           </div>
           <button class="btn btn-success btn-sm" onclick="exportReportExcel()">📥 Export Excel</button>

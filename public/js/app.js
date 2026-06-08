@@ -167,10 +167,14 @@ async function loadFilters() {
 function populateMonthSelectors() {
   document.querySelectorAll('.month-select').forEach(select => {
     const currentValue = select.value;
-    select.innerHTML = '<option value="">All Months</option>';
+    const required = select.dataset.required === 'true';
+    select.innerHTML = required ? '' : '<option value="">All Months</option>';
     AppState.months.forEach(m => {
       select.innerHTML += `<option value="${m}" ${m === currentValue ? 'selected' : ''}>${formatMonthLabel(m)}</option>`;
     });
+    if (required && !select.value && select.options.length > 0) {
+      select.value = select.options[0].value;
+    }
   });
 }
 
